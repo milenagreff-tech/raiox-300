@@ -104,7 +104,7 @@ describe("correção do @", () => {
     const { store } = await setup();
     await submitBriefing(store, TOKEN, valid);
     store.jobs[0].status = "concluido";
-    expect(await submitCorrection(store, TOKEN, "@lojadaana_oficial")).toEqual({ ok: true, handle: "@lojadaana_oficial" });
+    expect(await submitCorrection(store, TOKEN, "@lojadaana_oficial")).toMatchObject({ ok: true, handle: "@lojadaana_oficial" });
     expect(store.jobs.filter((j) => j.status === "pendente")).toHaveLength(1);
     expect((await submitCorrection(store, TOKEN, "@outra")).ok).toBe(false);
     expect(store.briefings[0].handle).toBe("@lojadaana_oficial");

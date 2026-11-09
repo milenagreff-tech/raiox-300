@@ -1,3 +1,5 @@
+import type { InstagramProfile } from "@/lib/instagram/types";
+
 // Interface do banco. A versão real usa o Supabase; os testes usam uma versão em memória.
 
 export type OrderStatus =
@@ -60,6 +62,29 @@ export interface StoredEvent {
   payload: unknown;
 }
 
+export type JobStatus = "pendente" | "processando" | "concluido" | "falhou";
+
+export interface Job {
+  id: string;
+  orderId: string;
+  type: string;
+  status: JobStatus;
+  attempts: number; // já inclui a tentativa atual depois de "claimJobs"
+  runAfter: Date;
+  lastError: string | null;
+}
+
+export interface CollectionRecord {
+  orderId: string;
+  provider: string;
+  handle: string;
+  ok: boolean;
+  reason: string | null;
+  message: string | null;
+  raw: unknown;
+  profile: InstagramProfile | null;
+}
+
 export type NotificationStatus = "enviado" | "simulado" | "falhou";
 
 export type ReceiveBriefingResult = "ok" | "exists";
@@ -74,6 +99,7 @@ export interface Store {
   /** Busca pelo código da transação em qualquer gateway (página de obrigado). */
   findOrderByTransactionCode(transactionId: string): Promise<Order | null>;
   findOrderByBriefingToken(token: string): Promise<Order | null>;
+  findOrderById(id: string): Promise<Order | null>;
   /** Cria o pedido. Retorna null se já existir pedido para a mesma transação. */
   createOrder(o: NewOrder): Promise<Order | null>;
   updateOrder(id: string, patch: Partial<Pick<Order, "status" | "pausedReason">>): Promise<void>;
@@ -89,6 +115,18 @@ export interface Store {
    * exceto quando o pedido está em "erro" (coleta falhou): aí não conta como correção.
    */
   correctHandle(orderId: string, handle: string): Promise<CorrectHandleResult>;
+
+  /** Coloca uma tarefa na fila (se já houver uma ativa do mesmo tipo, não duplica). */
+  enqueueJob(orderId: string, type: string, runAfter?: Date): Promise<void>;
+  /** Pega tarefas prontas para rodar e marca como "processando" (sem duas pessoas pegarem a mesma). */
+  claimJobs(types: string[], limit: number, orderId?: string): Promise<Job[]>;
+  completeJob(id: string): Promise<void>;
+  retryJob(id: string, error: string, runAfter: Date): Promise<void>;
+  failJob(id: string, error: string): Promise<void>;
+
+  /** Guarda o resultado bruto de cada coleta (sucesso ou erro). */
+  saveCollection(c: CollectionRecord): Promise<void>;
+  getLatestCollection(orderId: string, onlyOk?: boolean): Promise<(CollectionRecord & { createdAt: Date }) | null>;
 
   /** Registra uma tentativa e diz se ainda está dentro do limite. */
   hitRateLimit(key: string, limit: number, windowSeconds: number): Promise<boolean>;

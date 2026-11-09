@@ -2,7 +2,9 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type {
   Briefing,
   BriefingData,
+  CollectionRecord,
   CorrectHandleResult,
+  Job,
   NewOrder,
   NotificationStatus,
   Order,
@@ -30,6 +32,28 @@ type OrderRow = {
   paid_at: string | null;
   briefing_at: string | null;
   due_at: string | null;
+  created_at: string;
+};
+
+type JobRow = {
+  id: string;
+  order_id: string;
+  type: string;
+  status: Job["status"];
+  attempts: number;
+  run_after: string;
+  last_error: string | null;
+};
+
+type CollectionRow = {
+  order_id: string;
+  provider: string;
+  handle: string;
+  ok: boolean;
+  reason: string | null;
+  message: string | null;
+  raw: unknown;
+  profile: CollectionRecord["profile"];
   created_at: string;
 };
 
@@ -124,6 +148,88 @@ export class SupabaseStore implements Store {
 
   async findOrderByBriefingToken(token: string) {
     return this.findOrderBy("briefing_token", token);
+  }
+
+  async findOrderById(id: string) {
+    return this.findOrderBy("id", id);
+  }
+
+  async enqueueJob(orderId: string, type: string, runAfter: Date = new Date()) {
+    const { error } = await this.db.rpc("enqueue_job", {
+      p_order_id: orderId,
+      p_type: type,
+      p_run_after: runAfter.toISOString(),
+    });
+    if (error) throw new Error(`enqueue_job: ${error.message}`);
+  }
+
+  async claimJobs(types: string[], limit: number, orderId?: string): Promise<Job[]> {
+    const { data, error } = await this.db.rpc("claim_jobs", {
+      p_types: types,
+      p_limit: limit,
+      p_order_id: orderId ?? null,
+    });
+    if (error) throw new Error(`claim_jobs: ${error.message}`);
+    return ((data ?? []) as JobRow[]).map((r) => ({
+      id: r.id,
+      orderId: r.order_id,
+      type: r.type,
+      status: r.status,
+      attempts: r.attempts,
+      runAfter: new Date(r.run_after),
+      lastError: r.last_error,
+    }));
+  }
+
+  private async updateJob(id: string, row: Record<string, unknown>) {
+    const { error } = await this.db.from("jobs").update(row).eq("id", id);
+    if (error) throw new Error(`jobs: ${error.message}`);
+  }
+
+  async completeJob(id: string) {
+    await this.updateJob(id, { status: "concluido", last_error: null });
+  }
+
+  async retryJob(id: string, err: string, runAfter: Date) {
+    await this.updateJob(id, { status: "pendente", last_error: err.slice(0, 1000), run_after: runAfter.toISOString() });
+  }
+
+  async failJob(id: string, err: string) {
+    await this.updateJob(id, { status: "falhou", last_error: err.slice(0, 1000) });
+  }
+
+  async saveCollection(c: CollectionRecord) {
+    const { error } = await this.db.from("collections").insert({
+      order_id: c.orderId,
+      provider: c.provider,
+      handle: c.handle,
+      ok: c.ok,
+      reason: c.reason,
+      message: c.message,
+      raw: c.raw ?? null,
+      profile: c.profile,
+    });
+    if (error) throw new Error(`collections: ${error.message}`);
+  }
+
+  async getLatestCollection(orderId: string, onlyOk = false) {
+    let q = this.db.from("collections").select("*").eq("order_id", orderId);
+    if (onlyOk) q = q.eq("ok", true);
+    const { data, error } = await q.order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (error) throw new Error(`collections: ${error.message}`);
+    if (!data) return null;
+    const r = data as CollectionRow;
+    return {
+      orderId: r.order_id,
+      provider: r.provider,
+      handle: r.handle,
+      ok: r.ok,
+      reason: r.reason,
+      message: r.message,
+      raw: r.raw,
+      profile: r.profile,
+      createdAt: new Date(r.created_at),
+    };
   }
 
   async getBriefing(orderId: string): Promise<Briefing | null> {

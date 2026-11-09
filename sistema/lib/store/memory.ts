@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import type {
   Briefing,
   BriefingData,
+  CollectionRecord,
+  Job,
   CorrectHandleResult,
   NewOrder,
   NotificationStatus,
@@ -11,12 +13,7 @@ import type {
   StoredEvent,
 } from "./types";
 
-export interface MemoryJob {
-  id: string;
-  orderId: string;
-  type: string;
-  status: "pendente" | "processando" | "concluido" | "falhou";
-}
+export type MemoryJob = Job;
 
 // Banco em memória: usado nos testes automáticos e no modo de simulação sem Supabase.
 export class MemoryStore implements Store {
@@ -25,6 +22,7 @@ export class MemoryStore implements Store {
   briefings: Briefing[] = [];
   jobs: MemoryJob[] = [];
   attempts: { key: string; at: number }[] = [];
+  collections: (CollectionRecord & { createdAt: Date })[] = [];
   notifications: { orderId: string; kind: string; channel: string; status: NotificationStatus; error: string | null }[] = [];
 
   async recordEvent(e: StoredEvent) {
@@ -66,6 +64,7 @@ export class MemoryStore implements Store {
   }
 
   async updateOrder(id: string, patch: Partial<Pick<Order, "status" | "pausedReason">>) {
+    // (mesma regra do Supabase: só os campos informados mudam)
     const o = this.orders.find((x) => x.id === id);
     if (o) Object.assign(o, patch);
   }
@@ -74,11 +73,62 @@ export class MemoryStore implements Store {
     return this.briefings.find((b) => b.orderId === orderId) ?? null;
   }
 
-  private enqueue(orderId: string, type: string) {
+  private enqueue(orderId: string, type: string, runAfter = new Date()) {
     const active = this.jobs.some(
       (j) => j.orderId === orderId && j.type === type && (j.status === "pendente" || j.status === "processando"),
     );
-    if (!active) this.jobs.push({ id: randomUUID(), orderId, type, status: "pendente" });
+    if (!active) {
+      this.jobs.push({ id: randomUUID(), orderId, type, status: "pendente", attempts: 0, runAfter, lastError: null });
+    }
+  }
+
+  async findOrderById(id: string) {
+    return this.orders.find((o) => o.id === id) ?? null;
+  }
+
+  async enqueueJob(orderId: string, type: string, runAfter?: Date) {
+    this.enqueue(orderId, type, runAfter);
+  }
+
+  async claimJobs(types: string[], limit: number, orderId?: string) {
+    const now = Date.now();
+    const ready = this.jobs
+      .filter((j) => j.status === "pendente" && j.runAfter.getTime() <= now && types.includes(j.type))
+      .filter((j) => !orderId || j.orderId === orderId)
+      .sort((a, b) => a.runAfter.getTime() - b.runAfter.getTime())
+      .slice(0, limit);
+    for (const j of ready) {
+      j.status = "processando";
+      j.attempts += 1;
+    }
+    return ready.map((j) => ({ ...j }));
+  }
+
+  private job(id: string) {
+    const j = this.jobs.find((x) => x.id === id);
+    if (!j) throw new Error(`tarefa ${id} não existe`);
+    return j;
+  }
+
+  async completeJob(id: string) {
+    Object.assign(this.job(id), { status: "concluido", lastError: null });
+  }
+
+  async retryJob(id: string, error: string, runAfter: Date) {
+    Object.assign(this.job(id), { status: "pendente", lastError: error, runAfter });
+  }
+
+  async failJob(id: string, error: string) {
+    Object.assign(this.job(id), { status: "falhou", lastError: error });
+  }
+
+  async saveCollection(c: CollectionRecord) {
+    this.collections.push({ ...c, createdAt: new Date() });
+  }
+
+  async getLatestCollection(orderId: string, onlyOk = false) {
+    const list = this.collections.filter((c) => c.orderId === orderId && (!onlyOk || c.ok));
+    return list[list.length - 1] ?? null;
   }
 
   async receiveBriefing(orderId: string, data: BriefingData, dueAt: Date): Promise<ReceiveBriefingResult> {

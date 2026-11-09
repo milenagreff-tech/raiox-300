@@ -65,7 +65,7 @@ function isPlausibleToken(token: string) {
 // ---------- Envio do briefing ----------
 
 export type SubmitResult =
-  | { ok: true; dueAt: Date }
+  | { ok: true; dueAt: Date; orderId: string }
   | { ok: false; message?: string; errors?: FieldErrors };
 
 export async function submitBriefing(
@@ -93,12 +93,12 @@ export async function submitBriefing(
   if (r === "exists") return { ok: false, message: "O briefing deste pedido já foi recebido." };
 
   log.info("briefing recebido", { orderId: order.id });
-  return { ok: true, dueAt };
+  return { ok: true, dueAt, orderId: order.id };
 }
 
 // ---------- Correção do @ ----------
 
-export type CorrectResult = { ok: true; handle: string } | { ok: false; message: string };
+export type CorrectResult = { ok: true; handle: string; orderId: string } | { ok: false; message: string };
 
 export async function submitCorrection(store: Store, token: string, instagram: string): Promise<CorrectResult> {
   if (!isPlausibleToken(token)) return { ok: false, message: MSG.notFound };
@@ -120,7 +120,7 @@ export async function submitCorrection(store: Store, token: string, instagram: s
   }
   if (r === "no_briefing") return { ok: false, message: "Preencha o briefing primeiro." };
   log.info("@ corrigido", { orderId: order.id });
-  return { ok: true, handle: h.handle };
+  return { ok: true, handle: h.handle, orderId: order.id };
 }
 
 // ---------- Página de obrigado: e-mail + código da transação ----------
