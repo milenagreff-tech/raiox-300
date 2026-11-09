@@ -24,3 +24,48 @@ a { color: inherit; }
 }
 .botao:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--preto); }
 .container { max-width: 720px; margin: 0 auto; padding: 32px 16px; }
+
+/* Topo e rodapé */
+.topo { background: var(--turquesa); border-bottom: 3px solid var(--preto); }
+.topo-inner { max-width: 720px; margin: 0 auto; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.marca { font-family: var(--font-titulo), "Arial Black", sans-serif; font-size: 20px; }
+.chip { display: inline-block; padding: 4px 10px; border: 3px solid var(--preto); box-shadow: 3px 3px 0 var(--preto); font-weight: 700; font-size: 14px; background: #fff; }
+.chip-amarelo { background: var(--amarelo); }
+.chip-rosa { background: var(--rosa); color: #fff; }
+.chip-verde { background: var(--verde); }
+.rodape { max-width: 720px; margin: 0 auto; padding: 8px 16px 40px; font-size: 14px; color: #444; }
+
+/* Foto sem recorte */
+.foto-wrap { margin: 0 0 16px; }
+.foto { width: 160px; height: auto; display: block; border: 3px solid var(--preto); box-shadow: 4px 4px 0 var(--preto); }
+
+h1 { font-size: clamp(26px, 6vw, 36px); margin: 0 0 12px; }
+.intro { font-size: 18px; margin: 0 0 24px; }
+.destaque { font-size: 19px; font-weight: 700; }
+.pequeno { font-size: 14px; color: #444; }
+
+/* Formulários */
+.form { display: flex; flex-direction: column; gap: 18px; }
+.campo { display: flex; flex-direction: column; gap: 6px; font-weight: 700; }
+.campo small { font-weight: 400; color: #444; }
+.campo input, .campo textarea {
+  font: inherit; font-weight: 400; padding: 12px; border: 3px solid var(--preto); background: #fff; width: 100%;
+}
+.campo input:focus, .campo textarea:focus { outline: 3px solid var(--turquesa); outline-offset: 2px; }
+.campo [aria-invalid="true"] { border-color: var(--rosa); }
+.erro { color: var(--rosa) !important; font-weight: 700 !important; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; }
+.check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--preto); flex: none; }
+.botao[disabled] { opacity: .6; cursor: wait; }
+.botao-secundario { background: #fff; }
+.correcao { margin-top: 24px; padding-top: 20px; border-top: 3px dashed var(--preto); }
+.correcao h3 { margin: 0; }
+
+/* Avisos */
+.aviso { border: 3px solid var(--preto); padding: 12px 14px; background: var(--offwhite); font-size: 15px; }
+.aviso-erro { background: #ffe3ec; }
+.aviso-ok { background: #e3ffe0; }
+
+/* Texto longo (política) */
+.texto-longo h2 { font-size: 20px; margin: 24px 0 8px; }
+.texto-longo ul { padding-left: 20px; }

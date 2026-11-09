@@ -1,5 +1,15 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { NewOrder, NotificationStatus, Order, Store, StoredEvent } from "./types";
+import type {
+  Briefing,
+  BriefingData,
+  CorrectHandleResult,
+  NewOrder,
+  NotificationStatus,
+  Order,
+  ReceiveBriefingResult,
+  Store,
+  StoredEvent,
+} from "./types";
 
 const UNIQUE_VIOLATION = "23505";
 
@@ -18,7 +28,21 @@ type OrderRow = {
   paused_reason: string | null;
   briefing_token: string;
   paid_at: string | null;
+  briefing_at: string | null;
+  due_at: string | null;
   created_at: string;
+};
+
+type BriefingRow = {
+  order_id: string;
+  instagram_handle: string;
+  site: string | null;
+  whatsapp: string | null;
+  whatsapp_consent: boolean;
+  sales_pain: string | null;
+  handle_corrections: number;
+  created_at: string;
+  updated_at: string;
 };
 
 function toOrder(r: OrderRow): Order {
@@ -37,6 +61,8 @@ function toOrder(r: OrderRow): Order {
     pausedReason: r.paused_reason,
     briefingToken: r.briefing_token,
     paidAt: r.paid_at ? new Date(r.paid_at) : null,
+    briefingAt: r.briefing_at ? new Date(r.briefing_at) : null,
+    dueAt: r.due_at ? new Date(r.due_at) : null,
     createdAt: new Date(r.created_at),
   };
 }
@@ -84,6 +110,68 @@ export class SupabaseStore implements Store {
       .maybeSingle();
     if (error) throw new Error(`orders: ${error.message}`);
     return data ? toOrder(data as OrderRow) : null;
+  }
+
+  private async findOrderBy(column: string, value: string) {
+    const { data, error } = await this.db.from("orders").select("*").eq(column, value).maybeSingle();
+    if (error) throw new Error(`orders: ${error.message}`);
+    return data ? toOrder(data as OrderRow) : null;
+  }
+
+  async findOrderByTransactionCode(transactionId: string) {
+    return this.findOrderBy("transaction_id", transactionId);
+  }
+
+  async findOrderByBriefingToken(token: string) {
+    return this.findOrderBy("briefing_token", token);
+  }
+
+  async getBriefing(orderId: string): Promise<Briefing | null> {
+    const { data, error } = await this.db.from("briefings").select("*").eq("order_id", orderId).maybeSingle();
+    if (error) throw new Error(`briefings: ${error.message}`);
+    if (!data) return null;
+    const r = data as BriefingRow;
+    return {
+      orderId: r.order_id,
+      handle: r.instagram_handle,
+      site: r.site,
+      whatsapp: r.whatsapp,
+      whatsappConsent: r.whatsapp_consent,
+      salesPain: r.sales_pain,
+      handleCorrections: r.handle_corrections,
+      createdAt: new Date(r.created_at),
+      updatedAt: new Date(r.updated_at),
+    };
+  }
+
+  async receiveBriefing(orderId: string, d: BriefingData, dueAt: Date): Promise<ReceiveBriefingResult> {
+    const { data, error } = await this.db.rpc("receive_briefing", {
+      p_order_id: orderId,
+      p_handle: d.handle,
+      p_site: d.site,
+      p_whatsapp: d.whatsapp,
+      p_consent: d.whatsappConsent,
+      p_pain: d.salesPain,
+      p_due_at: dueAt.toISOString(),
+    });
+    if (error) throw new Error(`receive_briefing: ${error.message}`);
+    return data as ReceiveBriefingResult;
+  }
+
+  async correctHandle(orderId: string, handle: string): Promise<CorrectHandleResult> {
+    const { data, error } = await this.db.rpc("correct_handle", { p_order_id: orderId, p_handle: handle });
+    if (error) throw new Error(`correct_handle: ${error.message}`);
+    return data as CorrectHandleResult;
+  }
+
+  async hitRateLimit(key: string, limit: number, windowSeconds: number) {
+    const { data, error } = await this.db.rpc("hit_rate_limit", {
+      p_key: key,
+      p_limit: limit,
+      p_window_seconds: windowSeconds,
+    });
+    if (error) throw new Error(`hit_rate_limit: ${error.message}`);
+    return data === true;
   }
 
   async createOrder(o: NewOrder) {

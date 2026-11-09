@@ -2,7 +2,8 @@ import { MemoryStore } from "./memory";
 import { SupabaseStore } from "./supabase";
 import type { Store } from "./types";
 
-let memory: MemoryStore | null = null;
+// Guardado no objeto global para sobreviver às recargas do modo de desenvolvimento.
+const g = globalThis as unknown as { __raioxMemoryStore?: MemoryStore };
 
 /**
  * Banco usado pelo app. Sem Supabase configurado e com DRY_RUN=true, usa um banco
@@ -11,8 +12,8 @@ let memory: MemoryStore | null = null;
 export function getStore(): Store {
   if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) return SupabaseStore.fromEnv();
   if (process.env.DRY_RUN === "true") {
-    memory ??= new MemoryStore();
-    return memory;
+    g.__raioxMemoryStore ??= new MemoryStore();
+    return g.__raioxMemoryStore;
   }
   throw new Error("Banco não configurado: preencha SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY");
 }
