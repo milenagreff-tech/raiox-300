@@ -43,7 +43,7 @@ describe("adaptador da Meta", () => {
     const f = fakeFetch(metaOk);
     const p = createMetaProvider({ igUserId: "999", accessToken: "tok", fetchImpl: f.impl });
     const r = await p.getInstagramProfile("@lojadaana");
-    expect(f.calls[0].url).toContain("graph.facebook.com/v23.0/999");
+    expect(f.calls[0].url).toContain("graph.facebook.com/v27.0/999");
     expect(decodeURIComponent(f.calls[0].url)).toContain("business_discovery.username(lojadaana)");
     expect(f.calls[0].auth).toBe("Bearer tok");
     expect(r.ok).toBe(true);

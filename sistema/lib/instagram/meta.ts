@@ -54,7 +54,7 @@ export function createMetaProvider(opts: {
   version?: string;
   fetchImpl?: typeof fetch;
 }): InstagramProvider {
-  const version = opts.version || "v23.0";
+  const version = opts.version || "v27.0";
   const doFetch = opts.fetchImpl ?? fetch;
 
   return {
