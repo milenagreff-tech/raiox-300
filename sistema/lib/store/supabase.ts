@@ -5,6 +5,9 @@ import type {
   CollectionRecord,
   CorrectHandleResult,
   Job,
+  NewReport,
+  Report,
+  ReportStatus,
   NewOrder,
   NotificationStatus,
   Order,
@@ -32,8 +35,39 @@ type OrderRow = {
   paid_at: string | null;
   briefing_at: string | null;
   due_at: string | null;
+  report_token: string | null;
   created_at: string;
 };
+
+type ReportRow = {
+  id: string;
+  order_id: string;
+  version: number;
+  status: ReportStatus;
+  metrics: Report["metrics"];
+  content: Report["content"];
+  problems: string[] | null;
+  writer: string;
+  usage: unknown;
+  created_at: string;
+  sent_at: string | null;
+};
+
+function toReport(r: ReportRow): Report {
+  return {
+    id: r.id,
+    orderId: r.order_id,
+    version: r.version,
+    status: r.status,
+    metrics: r.metrics,
+    content: r.content,
+    problems: r.problems,
+    writer: r.writer,
+    usage: r.usage,
+    createdAt: new Date(r.created_at),
+    sentAt: r.sent_at ? new Date(r.sent_at) : null,
+  };
+}
 
 type JobRow = {
   id: string;
@@ -87,6 +121,7 @@ function toOrder(r: OrderRow): Order {
     paidAt: r.paid_at ? new Date(r.paid_at) : null,
     briefingAt: r.briefing_at ? new Date(r.briefing_at) : null,
     dueAt: r.due_at ? new Date(r.due_at) : null,
+    reportToken: r.report_token,
     createdAt: new Date(r.created_at),
   };
 }
@@ -152,6 +187,56 @@ export class SupabaseStore implements Store {
 
   async findOrderById(id: string) {
     return this.findOrderBy("id", id);
+  }
+
+  async findOrderByReportToken(token: string) {
+    return this.findOrderBy("report_token", token);
+  }
+
+  async ensureReportToken(orderId: string, newToken: string) {
+    const { error } = await this.db.from("orders").update({ report_token: newToken }).eq("id", orderId).is("report_token", null);
+    if (error) throw new Error(`orders: ${error.message}`);
+    const o = await this.findOrderById(orderId);
+    if (!o?.reportToken) throw new Error("não foi possível definir o link do relatório");
+    return o.reportToken;
+  }
+
+  async saveReport(r: NewReport) {
+    // Tenta a próxima versão; se duas gerações rodarem juntas, a restrição única evita versão repetida.
+    for (let i = 0; i < 3; i++) {
+      const latest = await this.getLatestReport(r.orderId);
+      const { data, error } = await this.db
+        .from("reports")
+        .insert({
+          order_id: r.orderId,
+          version: (latest?.version ?? 0) + 1,
+          status: r.status,
+          metrics: r.metrics,
+          content: r.content,
+          problems: r.problems,
+          writer: r.writer,
+          usage: r.usage,
+        })
+        .select("*")
+        .single();
+      if (error?.code === UNIQUE_VIOLATION) continue;
+      if (error) throw new Error(`reports: ${error.message}`);
+      return toReport(data as ReportRow);
+    }
+    throw new Error("reports: conflito ao gravar a versão");
+  }
+
+  async getLatestReport(orderId: string, statuses?: ReportStatus[]) {
+    let q = this.db.from("reports").select("*").eq("order_id", orderId);
+    if (statuses) q = q.in("status", statuses);
+    const { data, error } = await q.order("version", { ascending: false }).limit(1).maybeSingle();
+    if (error) throw new Error(`reports: ${error.message}`);
+    return data ? toReport(data as ReportRow) : null;
+  }
+
+  async markReportSent(reportId: string) {
+    const { error } = await this.db.from("reports").update({ status: "enviado", sent_at: new Date().toISOString() }).eq("id", reportId);
+    if (error) throw new Error(`reports: ${error.message}`);
   }
 
   async enqueueJob(orderId: string, type: string, runAfter: Date = new Date()) {

@@ -62,6 +62,13 @@ export default async function BriefingPage({ params }: { params: Promise<{ token
             )}
           </p>
         )}
+        {state.reportToken && (
+          <p>
+            <a className="botao" href={`/relatorio/${state.reportToken}`}>
+              Ver meu relatório
+            </a>
+          </p>
+        )}
         {state.canCorrect && <CorrectionForm token={token} free={state.collectFailed} />}
       </div>
     </Shell>

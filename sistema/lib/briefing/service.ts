@@ -25,7 +25,15 @@ export type BriefingPageState =
   | { kind: "reembolsado" }
   | { kind: "pausado" }
   | { kind: "formulario"; firstName: string }
-  | { kind: "recebido"; firstName: string; handle: string; canCorrect: boolean; collectFailed: boolean; dueAt: Date | null };
+  | {
+      kind: "recebido";
+      firstName: string;
+      handle: string;
+      canCorrect: boolean;
+      collectFailed: boolean;
+      dueAt: Date | null;
+      reportToken: string | null; // preenchido quando o relatório já foi enviado
+    };
 
 export function firstName(order: Order): string {
   return (order.buyerName ?? "").trim().split(/\s+/)[0] ?? "";
@@ -48,6 +56,8 @@ export function pageState(order: Order | null, briefing: Briefing | null): Brief
     canCorrect: !finished && (collectFailed || briefing.handleCorrections < 1),
     collectFailed,
     dueAt: order.dueAt,
+    reportToken:
+      order.reportToken && (order.status === "relatorio_enviado" || order.status === "analise_entregue") ? order.reportToken : null,
   };
 }
 

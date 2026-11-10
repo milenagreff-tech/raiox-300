@@ -3,13 +3,18 @@ import { log } from "@/lib/log";
 import { mailerFromEnv } from "@/lib/messaging/email";
 import { getStore } from "@/lib/store";
 import type { Job } from "@/lib/store/types";
+import { createDryRunWriter } from "@/lib/report/dryrun";
+import { createClaudeWriter } from "@/lib/report/generate";
 import { type JobDeps, type JobOutcome, runCollectJob } from "./collect";
+import { runGenerateReportJob, runSendReportJob } from "./report";
 
 export type JobHandler = (job: Job, deps: JobDeps) => Promise<JobOutcome>;
 
-/** Tarefas que este sistema sabe executar. A geração do relatório entra na etapa 4. */
+/** Tarefas que este sistema sabe executar. */
 export const HANDLERS: Record<string, JobHandler> = {
   coletar: runCollectJob,
+  gerar_relatorio: runGenerateReportJob,
+  enviar_relatorio: runSendReportJob,
 };
 
 export function depsFromEnv(): JobDeps {
@@ -19,6 +24,8 @@ export function depsFromEnv(): JobDeps {
     provider: getInstagramProvider(),
     appUrl: process.env.APP_URL ?? "http://localhost:3000",
     adminEmail: process.env.ADMIN_EMAIL,
+    writerFor: (input) =>
+      process.env.DRY_RUN === "true" ? createDryRunWriter(input) : createClaudeWriter(process.env.ANTHROPIC_API_KEY),
   };
 }
 

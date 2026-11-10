@@ -1,4 +1,6 @@
 import type { InstagramProfile } from "@/lib/instagram/types";
+import type { Metrics } from "@/lib/metrics";
+import type { ReportContent } from "@/lib/report/schema";
 
 // Interface do banco. A versão real usa o Supabase; os testes usam uma versão em memória.
 
@@ -24,13 +26,14 @@ export interface Order {
   status: OrderStatus;
   pausedReason: string | null;
   briefingToken: string;
+  reportToken: string | null;
   paidAt: Date | null;
   briefingAt: Date | null;
   dueAt: Date | null;
   createdAt: Date;
 }
 
-export type NewOrder = Omit<Order, "id" | "createdAt" | "pausedReason" | "briefingAt" | "dueAt"> & {
+export type NewOrder = Omit<Order, "id" | "createdAt" | "pausedReason" | "briefingAt" | "dueAt" | "reportToken"> & {
   pausedReason?: string | null;
 };
 
@@ -85,6 +88,24 @@ export interface CollectionRecord {
   profile: InstagramProfile | null;
 }
 
+export type ReportStatus = "pronto" | "enviado" | "revisar";
+
+export interface Report {
+  id: string;
+  orderId: string;
+  version: number;
+  status: ReportStatus;
+  metrics: Metrics;
+  content: ReportContent | null;
+  problems: string[] | null;
+  writer: string;
+  usage: unknown;
+  createdAt: Date;
+  sentAt: Date | null;
+}
+
+export type NewReport = Pick<Report, "orderId" | "status" | "metrics" | "content" | "problems" | "writer" | "usage">;
+
 export type NotificationStatus = "enviado" | "simulado" | "falhou";
 
 export type ReceiveBriefingResult = "ok" | "exists";
@@ -100,6 +121,9 @@ export interface Store {
   findOrderByTransactionCode(transactionId: string): Promise<Order | null>;
   findOrderByBriefingToken(token: string): Promise<Order | null>;
   findOrderById(id: string): Promise<Order | null>;
+  findOrderByReportToken(token: string): Promise<Order | null>;
+  /** Define o link privado do relatório, se ainda não existir. Devolve o token em uso. */
+  ensureReportToken(orderId: string, newToken: string): Promise<string>;
   /** Cria o pedido. Retorna null se já existir pedido para a mesma transação. */
   createOrder(o: NewOrder): Promise<Order | null>;
   updateOrder(id: string, patch: Partial<Pick<Order, "status" | "pausedReason">>): Promise<void>;
@@ -127,6 +151,11 @@ export interface Store {
   /** Guarda o resultado bruto de cada coleta (sucesso ou erro). */
   saveCollection(c: CollectionRecord): Promise<void>;
   getLatestCollection(orderId: string, onlyOk?: boolean): Promise<(CollectionRecord & { createdAt: Date }) | null>;
+
+  /** Grava um relatório com a próxima versão do pedido (1, 2, 3...). */
+  saveReport(r: NewReport): Promise<Report>;
+  getLatestReport(orderId: string, statuses?: ReportStatus[]): Promise<Report | null>;
+  markReportSent(reportId: string): Promise<void>;
 
   /** Registra uma tentativa e diz se ainda está dentro do limite. */
   hitRateLimit(key: string, limit: number, windowSeconds: number): Promise<boolean>;

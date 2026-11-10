@@ -4,6 +4,9 @@ import type {
   BriefingData,
   CollectionRecord,
   Job,
+  NewReport,
+  Report,
+  ReportStatus,
   CorrectHandleResult,
   NewOrder,
   NotificationStatus,
@@ -23,6 +26,7 @@ export class MemoryStore implements Store {
   jobs: MemoryJob[] = [];
   attempts: { key: string; at: number }[] = [];
   collections: (CollectionRecord & { createdAt: Date })[] = [];
+  reports: Report[] = [];
   notifications: { orderId: string; kind: string; channel: string; status: NotificationStatus; error: string | null }[] = [];
 
   async recordEvent(e: StoredEvent) {
@@ -56,6 +60,7 @@ export class MemoryStore implements Store {
       pausedReason: o.pausedReason ?? null,
       briefingAt: null,
       dueAt: null,
+      reportToken: null,
       id: randomUUID(),
       createdAt: new Date(),
     };
@@ -84,6 +89,36 @@ export class MemoryStore implements Store {
 
   async findOrderById(id: string) {
     return this.orders.find((o) => o.id === id) ?? null;
+  }
+
+  async findOrderByReportToken(token: string) {
+    return this.orders.find((o) => o.reportToken === token) ?? null;
+  }
+
+  async ensureReportToken(orderId: string, newToken: string) {
+    const o = this.orders.find((x) => x.id === orderId);
+    if (!o) throw new Error("pedido não existe");
+    o.reportToken ??= newToken;
+    return o.reportToken;
+  }
+
+  async saveReport(r: NewReport) {
+    const version = Math.max(0, ...this.reports.filter((x) => x.orderId === r.orderId).map((x) => x.version)) + 1;
+    const report: Report = { ...r, id: randomUUID(), version, createdAt: new Date(), sentAt: null };
+    this.reports.push(report);
+    return report;
+  }
+
+  async getLatestReport(orderId: string, statuses?: ReportStatus[]) {
+    const list = this.reports
+      .filter((x) => x.orderId === orderId && (!statuses || statuses.includes(x.status)))
+      .sort((a, b) => b.version - a.version);
+    return list[0] ?? null;
+  }
+
+  async markReportSent(reportId: string) {
+    const r = this.reports.find((x) => x.id === reportId);
+    if (r) Object.assign(r, { status: "enviado", sentAt: new Date() });
   }
 
   async enqueueJob(orderId: string, type: string, runAfter?: Date) {

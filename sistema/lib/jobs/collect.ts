@@ -3,6 +3,7 @@ import type { InstagramProvider } from "@/lib/instagram/types";
 import { log } from "@/lib/log";
 import { notifyAdmin } from "@/lib/messaging/admin";
 import type { Mailer } from "@/lib/messaging/email";
+import type { GenerateInput, ReportWriter } from "@/lib/report/generate";
 import type { Job, Store } from "@/lib/store/types";
 
 export interface JobDeps {
@@ -12,6 +13,8 @@ export interface JobDeps {
   appUrl: string;
   adminEmail?: string | null;
   now?: () => Date;
+  /** Quem redige o relatório (Claude ou simulação). */
+  writerFor?: (input: GenerateInput) => ReportWriter;
 }
 
 export type JobOutcome = "concluido" | "nova_tentativa" | "falhou" | "ignorado";

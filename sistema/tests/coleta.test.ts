@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildExampleProfile } from "@/fixtures/perfil-exemplo";
 import { MAX_ATTEMPTS, retryAt } from "@/lib/jobs/collect";
-import { runJobs } from "@/lib/jobs/worker";
+import { HANDLERS, runJobs } from "@/lib/jobs/worker";
+
+const ONLY_COLLECT = { coletar: HANDLERS.coletar };
 import { classifyMetaError, createMetaProvider, postType } from "@/lib/instagram/meta";
 import type { InstagramProvider, ProfileResult } from "@/lib/instagram/types";
 import { ConsoleMailer } from "@/lib/messaging/email";
@@ -122,7 +124,7 @@ async function setup(results: ProfileResult[]) {
 describe("tarefa de coleta", () => {
   it("sucesso: guarda o JSON bruto e coloca a geração do relatório na fila", async () => {
     const { store, order, deps } = await setup([okResult]);
-    const r = await runJobs(deps, { orderId: order.id });
+    const r = await runJobs(deps, { orderId: order.id, handlers: ONLY_COLLECT });
     expect(r).toEqual([expect.objectContaining({ type: "coletar", outcome: "concluido" })]);
     expect(store.collections[0]).toMatchObject({ ok: true, handle: "@lojadaana", raw: { bruto: 1 } });
     expect(store.jobs.map((j) => [j.type, j.status])).toEqual([
@@ -133,7 +135,7 @@ describe("tarefa de coleta", () => {
 
   it("perfil inacessível: status 'erro', e-mail ao cliente (uma vez por @) e aviso para a Milena", async () => {
     const { store, order, mailer, deps } = await setup([notFound]);
-    await runJobs(deps, { orderId: order.id });
+    await runJobs(deps, { orderId: order.id, handlers: ONLY_COLLECT });
     expect(store.orders[0].status).toBe("erro");
     const toClient = mailer.sent.filter((m) => m.to === "ana@exemplo.com");
     const toAdmin = mailer.sent.filter((m) => m.to === "eu@milena.ia.br");
@@ -145,20 +147,20 @@ describe("tarefa de coleta", () => {
 
     // O cliente reenvia o mesmo @ (correção grátis) e ainda falha: não recebe o mesmo e-mail de novo.
     await store.correctHandle(order.id, "@lojadaana");
-    await runJobs(deps, { orderId: order.id });
+    await runJobs(deps, { orderId: order.id, handlers: ONLY_COLLECT });
     expect(mailer.sent.filter((m) => m.to === "ana@exemplo.com")).toHaveLength(1);
   });
 
   it("erro temporário: tenta de novo com espera e desiste depois do limite", async () => {
     const { store, order, mailer, prov, deps } = await setup([temporary]);
-    await runJobs(deps, { orderId: order.id });
+    await runJobs(deps, { orderId: order.id, handlers: ONLY_COLLECT });
     const job = store.jobs[0];
     expect(job.status).toBe("pendente");
     expect(job.runAfter.getTime()).toBeGreaterThan(Date.now() + 60_000);
 
     for (let i = 1; i < MAX_ATTEMPTS; i++) {
       job.runAfter = new Date(0); // simula a passagem do tempo
-      await runJobs(deps, { orderId: order.id });
+      await runJobs(deps, { orderId: order.id, handlers: ONLY_COLLECT });
     }
     expect(prov.calls).toBe(MAX_ATTEMPTS);
     expect(job.status).toBe("falhou");
@@ -170,7 +172,7 @@ describe("tarefa de coleta", () => {
   it("pedido reembolsado no meio do caminho: não coleta", async () => {
     const { store, order, prov, deps } = await setup([okResult]);
     await store.updateOrder(order.id, { status: "reembolsado" });
-    const r = await runJobs(deps, { orderId: order.id });
+    const r = await runJobs(deps, { orderId: order.id, handlers: ONLY_COLLECT });
     expect(r[0].outcome).toBe("ignorado");
     expect(prov.calls).toBe(0);
   });

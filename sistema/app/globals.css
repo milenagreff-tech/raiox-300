@@ -69,3 +69,41 @@ h1 { font-size: clamp(26px, 6vw, 36px); margin: 0 0 12px; }
 /* Texto longo (política) */
 .texto-longo h2 { font-size: 20px; margin: 24px 0 8px; }
 .texto-longo ul { padding-left: 20px; }
+
+/* Relatório */
+.frase-obrigatoria {
+  background: var(--amarelo); border: 3px solid var(--preto); box-shadow: 5px 5px 0 var(--preto);
+  padding: 16px 18px; font-weight: 700; font-size: 18px; margin: 8px 0 28px;
+}
+.rel-cabecalho { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
+.rel-cabecalho h1 { font-size: clamp(24px, 5vw, 32px); margin: 12px 0; }
+.foto-rel { width: 140px; flex: none; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 0 0 32px; }
+.card { background: #fff; border: 3px solid var(--preto); box-shadow: 4px 4px 0 var(--preto); padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+.card-label { font-size: 14px; color: #444; }
+.card-valor { font-family: var(--font-titulo), "Arial Black", sans-serif; font-weight: 400; font-size: 24px; }
+.card-nota { font-size: 13px; color: #555; }
+.secao { margin: 0 0 32px; }
+.secao h2 { display: inline-block; background: var(--turquesa); border: 3px solid var(--preto); box-shadow: 4px 4px 0 var(--preto); padding: 6px 12px; font-size: 20px; margin: 0 0 16px; }
+.secao p { margin: 0 0 12px; font-size: 17px; }
+.post-destaque { background: #fff; border: 3px solid var(--preto); padding: 14px; margin: 0 0 14px; }
+.post-destaque blockquote { margin: 8px 0; padding-left: 12px; border-left: 4px solid var(--rosa); color: #444; font-size: 15px; }
+.atencao { padding-left: 22px; }
+.atencao li { margin: 0 0 14px; }
+.atencao li::marker { font-family: var(--font-titulo), "Arial Black", sans-serif; }
+.chip-rosa { margin: 0; }
+
+@media (max-width: 560px) {
+  .rel-cabecalho { flex-direction: column-reverse; }
+  .foto-rel { width: 120px; }
+}
+
+/* Impressão / PDF */
+@media print {
+  @page { margin: 14mm; }
+  body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .nao-imprimir, .rodape { display: none !important; }
+  .container { max-width: none; padding: 0; }
+  .secao, .post-destaque, .card { break-inside: avoid; }
+  .card, .frase-obrigatoria, .secao h2, .chip { box-shadow: none; }
+}
